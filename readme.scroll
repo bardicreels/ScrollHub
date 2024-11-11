@@ -24,6 +24,38 @@ Torify your site with an onion domain: https://www.torproject.org/about/history/
 
 sudo apt update && sudo apt install -y tor && echo -e "HiddenServiceDir /var/lib/tor/hidden_service/\nHiddenServicePort 80 127.0.0.1:3000" | sudo tee -a /etc/tor/torrc && sudo systemctl restart tor && sudo cat /var/lib/tor/hidden_service/hostname
 
+
+# Helpful Dev Environment Aliases
+
+code
+ # Scroll
+ alias sb="scroll build"
+ 
+ # Npm
+ alias x="npm run"
+ 
+ # ScrollHub
+ alias hub="hub start"
+ 
+ # Git
+ alias gs="git status"
+ alias ga="git add ."
+ alias gc="git commit --allow-empty-message -m ''"
+ alias acp="git add . && git commit --allow-empty-message -m '' && git push"
+ # Make sure server side .gitignore includes all log and often changed files, to avoid local push conflicts.
+
+# Git Troubleshooting
+
+ScrollHub uses git for versioning files.
+
+If developing locally, occasionally you may run into merge conflicts.
+
+To see the "git status" for a folder visit: https://hub.scroll.pub/status/[folderName]
+
+It is recommended to prevent force pushes on your server with `git config --system receive.denyNonFastForwards true`.
+
+****
+
 ScrollHub is public domain.
 
 footer.scroll

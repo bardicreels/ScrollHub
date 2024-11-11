@@ -392,7 +392,7 @@ class ScrollHub {
   initHistoryRoutes() {
     const { app, rootFolder, folderCache } = this
     const checkWritePermissions = this.checkWritePermissions.bind(this)
-    app.get("/history.htm/:folderName", async (req, res) => {
+    app.get("/revisions.htm/:folderName", async (req, res) => {
       const folderName = sanitizeFolderName(req.params.folderName)
       const folderPath = path.join(rootFolder, folderName)
       if (!folderCache[folderName]) return res.status(404).send("Folder not found")
@@ -408,7 +408,7 @@ class ScrollHub {
         res.status(500).send("An error occurred while fetching the git log")
       }
     })
-    app.get("/diff.htm/:folderName", async (req, res) => {
+    app.get("/diffs.htm/:folderName", async (req, res) => {
       const folderName = sanitizeFolderName(req.params.folderName)
       const folderPath = path.join(rootFolder, folderName)
       if (!folderCache[folderName]) return res.status(404).send("Folder not found")
@@ -538,7 +538,7 @@ ${prefix}${hash}<br>
 
         await this.buildFolder(folderName)
 
-        res.redirect("/diff.htm/" + folderName)
+        res.redirect("/diffs.htm/" + folderName)
         this.updateFolderAndBuildList(folderName)
       } catch (error) {
         console.error(error)
@@ -563,10 +563,6 @@ ${prefix}${hash}<br>
   initFileRoutes() {
     const { app, rootFolder, folderCache } = this
     const checkWritePermissions = this.checkWritePermissions.bind(this)
-
-    app.get("/e/:folderName", async (req, res) => {
-      res.redirect("/edit.html?folderName=" + req.params.folderName)
-    })
 
     app.post("/create.htm", checkWritePermissions, async (req, res) => {
       try {
@@ -936,17 +932,35 @@ ${prefix}${hash}<br>
     const { app } = this
     const checkWritePermissions = this.checkWritePermissions.bind(this)
 
-    app.get("/t/:folderName", checkWritePermissions, async (req, res) => {
-      await this.runCommand(req, res, "test")
+    app.get("/edit/:folderName", async (req, res) => {
+      res.redirect("/edit.html?folderName=" + req.params.folderName)
     })
 
-    app.get("/b/:folderName", checkWritePermissions, async (req, res) => {
-      await this.runCommand(req, res, "build")
+    app.get("/edit", async (req, res) => {
+      res.redirect("/edit.html")
     })
 
-    app.get("/f/:folderName", checkWritePermissions, async (req, res) => {
-      await this.runCommand(req, res, "format")
+    app.get("/test/:folderName", checkWritePermissions, async (req, res) => {
+      await this.runScrollCommand(req, res, "test")
     })
+
+    app.get("/build/:folderName", checkWritePermissions, async (req, res) => {
+      await this.runScrollCommand(req, res, "build")
+      this.updateFolderAndBuildList(this.getFolderName(req))
+    })
+
+    app.get("/format/:folderName", checkWritePermissions, async (req, res) => {
+      await this.runScrollCommand(req, res, "format")
+      this.updateFolderAndBuildList(this.getFolderName(req))
+    })
+
+    app.get("/status/:folderName", checkWritePermissions, async (req, res) => {
+      await this.runCommand(req, res, "git status")
+    })
+  }
+
+  async runScrollCommand(req, res, command) {
+    await this.runCommand(req, res, `scroll list | scroll ${command}`)
   }
 
   async runCommand(req, res, command) {
@@ -957,10 +971,9 @@ ${prefix}${hash}<br>
 
     try {
       const folderPath = path.join(rootFolder, folderName)
-      const { stdout } = await execAsync(`scroll list | scroll ${command}`, { cwd: folderPath })
+      const { stdout } = await execAsync(command, { cwd: folderPath })
       res.setHeader("Content-Type", "text/plain")
       res.send(stdout.toString())
-      if (command !== "test") this.updateFolderAndBuildList(folderName)
     } catch (error) {
       console.error(`Error running '${command}' in '${folderName}':`, error)
       res.status(500).send(`An error occurred while running '${command}' in '${folderName}'`)
@@ -1214,6 +1227,7 @@ ${prefix}${hash}<br>
   ensureTemplatesInstalled() {
     const { rootFolder, templatesFolder } = this
     const templateDirs = fs.readdirSync(templatesFolder)
+    const standardGitIgnore = fs.readFileSync(path.join(templatesFolder, "blank_template", ".gitignore"), "utf8")
 
     for (const dir of templateDirs) {
       const sourcePath = path.join(templatesFolder, dir)
@@ -1227,6 +1241,8 @@ ${prefix}${hash}<br>
 
       // Copy the template folder to the root folder
       execSync(`cp -R ${sourcePath} ${destPath};`, { cwd: rootFolder })
+
+      fs.writeFileSync(path.join(destPath, ".gitignore"), standardGitIgnore, "utf8")
 
       // Initialize Git repository
       execSync(`git init; git add .; git commit -m 'initial ${dir} template'`, { cwd: destPath })
@@ -1432,7 +1448,7 @@ Download folders as JSON | CSV | TSV
 table folders.csv
  compose links <a href="edit.html?folderName={folder}">edit</a> · <a href="{folder}.zip">zip</a>
   select folder folderLink links revised hash files mb revisions
-   compose hashLink diff.htm/{folder}
+   compose hashLink diffs.htm/{folder}
     orderBy -revised
      rename revised lastRevised
       printTable
